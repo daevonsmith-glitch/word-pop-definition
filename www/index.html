@@ -1,0 +1,496 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no, viewport-fit=cover">
+<title>Word Pop: Definition</title>
+<link rel="manifest" href="manifest.webmanifest">
+<link rel="icon" href="icons/icon-192.png">
+<link rel="apple-touch-icon" href="icons/apple-touch-icon.png">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+<meta name="apple-mobile-web-app-title" content="Word Pop Def">
+<meta name="theme-color" content="#1b1446">
+<style>
+  :root { --bg1:#1b1446; --bg2:#3a1f6e; --ink:#fff; --soft:rgba(255,255,255,.7); }
+  * { box-sizing:border-box; -webkit-tap-highlight-color:transparent; user-select:none; -webkit-user-select:none; }
+  html,body { margin:0; height:100%; overflow:hidden; font-family:ui-rounded, 'SF Pro Rounded', system-ui, -apple-system, 'Segoe UI', Roboto, sans-serif; color:var(--ink);
+    background:radial-gradient(circle at 30% 20%, var(--bg2), var(--bg1) 70%); touch-action:manipulation; }
+  #app { position:fixed; inset:0; display:flex; flex-direction:column;
+    padding:calc(max(env(safe-area-inset-top), var(--safe-area-inset-top, 0px)) + 10px) 12px calc(max(env(safe-area-inset-bottom), var(--safe-area-inset-bottom, 0px)) + 10px); }
+  header { display:flex; align-items:center; justify-content:space-between; gap:6px; z-index:5; }
+  .pill { background:rgba(255,255,255,.12); border-radius:999px; padding:6px 12px; font-weight:800; font-size:17px; white-space:nowrap; }
+  button.icon { background:rgba(255,255,255,.14); border:0; color:#fff; border-radius:999px; width:44px; height:44px; font-size:22px; cursor:pointer; flex:none; }
+  #target { z-index:5; text-align:center; margin-top:10px; }
+  #ask { color:var(--soft); font-size:16px; font-weight:600; }
+  #word { font-weight:800; line-height:1.1; letter-spacing:1px; text-shadow:0 4px 14px rgba(0,0,0,.35); white-space:nowrap; }
+  #field { position:relative; flex:1; overflow:hidden; margin-top:6px; }
+  .bubble { position:absolute; border-radius:50%; display:flex; align-items:center; justify-content:center; text-align:center;
+    font-weight:800; line-height:1.08; color:#fff; text-shadow:0 1px 3px rgba(0,0,0,.55); cursor:pointer; will-change:transform;
+    padding:0 8px;
+    box-shadow: inset -8px -10px 18px rgba(0,0,0,.18), inset 8px 10px 18px rgba(255,255,255,.4), 0 6px 18px rgba(0,0,0,.25);
+    transition: background-color 1.2s linear, opacity .3s; }
+  .bubble::after { content:''; position:absolute; top:9%; left:18%; width:22%; height:13%; border-radius:50%; background:rgba(255,255,255,.6); transform:rotate(-30deg); pointer-events:none; }
+  .bubble.out { opacity:.38; }
+  .bubble.wobble { animation:wobble .4s; }
+  @keyframes wobble { 25%{ filter:brightness(.8);} 50%{ filter:brightness(1.2);} }
+  .spark { position:absolute; width:10px; height:10px; border-radius:50%; pointer-events:none; }
+  #overlay { position:fixed; inset:0; z-index:20; display:flex; align-items:center; justify-content:center; background:rgba(15,10,40,.75); backdrop-filter:blur(4px); overflow:auto; }
+  #overlay.hide { display:none; }
+  .card { background:linear-gradient(160deg,#5b3bd1,#2f1d7a); border-radius:28px; padding:24px 22px; width:min(92vw,380px); text-align:center; box-shadow:0 20px 50px rgba(0,0,0,.4); margin:auto; }
+  .card h1 { margin:0; font-size:40px; line-height:1; }
+  #logo span { transition:color 1.2s linear; text-shadow:0 3px 0 rgba(0,0,0,.28); }
+  #logo { font-size:50px; letter-spacing:1px; }
+  .card h1 small { display:block; font-size:20px; opacity:.85; margin-top:4px; }
+  .card p { color:var(--soft); margin:8px 0 14px; font-size:17px; }
+  .big { display:block; width:100%; border:0; border-radius:18px; padding:11px; margin:9px 0; font:inherit; font-size:21px; font-weight:800; color:#2a1a5e; cursor:pointer; line-height:1.15; }
+  .big small { display:block; font-size:14px; font-weight:600; opacity:.75; }
+  .opt { display:flex; justify-content:space-between; align-items:center; margin:10px 2px; font-size:17px; text-align:left; }
+  .toggle { width:56px; height:32px; border-radius:999px; background:rgba(255,255,255,.25); position:relative; border:0; cursor:pointer; flex:none; }
+  .toggle::after { content:''; position:absolute; top:4px; left:4px; width:24px; height:24px; border-radius:50%; background:#fff; transition:left .2s; }
+  .toggle.on { background:#4ade80; } .toggle.on::after { left:28px; }
+  #cheer { position:fixed; left:16px; right:16px; top:36%; text-align:center; z-index:10; pointer-events:none; opacity:0; transform:scale(.5); transition:all .35s cubic-bezier(.2,1.6,.4,1); text-shadow:0 4px 20px rgba(0,0,0,.5); }
+  #cheer.show { opacity:1; transform:scale(1); }
+  #cheer .w { font-size:38px; font-weight:800; line-height:1.1; overflow-wrap:anywhere; }
+  #cheer.miss .w { color:#ff8f8f; }
+  #board { display:flex; gap:6px; justify-content:center; flex-wrap:wrap; margin-top:8px; z-index:5; }
+  .chip { --c:#fff; background:rgba(255,255,255,.1); border-radius:14px; padding:3px 10px; font-weight:800; font-size:15px; border:2px solid transparent;
+    display:flex; gap:6px; align-items:center; white-space:nowrap; }
+  .chip.on { border-color:var(--c); background:rgba(255,255,255,.22); }
+  .chip.dead { opacity:.4; text-decoration:line-through; }
+  .chip i { width:10px; height:10px; border-radius:50%; background:var(--c); }
+  .chip b { font-size:18px; }
+  .ss { display:flex; gap:3px; } .s { width:8px; height:8px; border-radius:50%; background:rgba(255,255,255,.3); } .s.x { background:#ff5d5d; }
+  #turn { position:absolute; inset:0; display:none; flex-direction:column; align-items:center; justify-content:center; text-align:center; z-index:6; cursor:pointer; }
+  #turn.show { display:flex; }
+  #turn .who { font-size:46px; font-weight:800; line-height:1.05; text-shadow:0 4px 14px rgba(0,0,0,.35); }
+  #turn .sub { font-size:20px; color:var(--soft); margin-top:6px; }
+  #turn .go { margin-top:18px; background:#fff; color:#2a1a5e; border-radius:999px; padding:10px 26px; font-size:22px; font-weight:800; }
+  .seg { display:flex; gap:6px; margin:8px 0; }
+  .seg button { flex:1; border:0; border-radius:12px; padding:8px 4px; font:inherit; font-size:17px; font-weight:800; color:#fff; background:rgba(255,255,255,.14); cursor:pointer; }
+  .seg button.on { background:#fff; color:#2a1a5e; }
+  .seg[hidden] { display:none; }
+  #end { position:fixed; inset:0; z-index:25; display:none; align-items:center; justify-content:center; background:rgba(15,10,40,.8); backdrop-filter:blur(4px); overflow:auto; }
+  #end.show { display:flex; }
+  #endList { text-align:left; margin:10px 0 14px; font-size:18px; }
+  #endList div { display:flex; justify-content:space-between; gap:10px; padding:6px 10px; border-radius:12px; background:rgba(255,255,255,.1); margin:6px 0; }
+  @media (min-width:700px) and (min-height:640px) {
+    .card { zoom:1.45; }
+    header, #board { zoom:1.35; }
+    #ask { font-size:22px; }
+    #turn, #cheer { zoom:1.45; }
+  }
+  #cheer .d { font-size:24px; font-weight:600; margin-top:6px; }
+</style>
+</head>
+<body>
+<div id="app">
+  <header>
+    <button class="icon" id="menuBtn" aria-label="Menu">☰</button>
+    <div class="pill" id="levelPill">Easy</div>
+    <button class="icon" id="sayBtn" aria-label="Say the word">🔊</button>
+  </header>
+  <div id="board"></div>
+  <div id="target">
+    <div id="ask">What does this word mean?</div>
+    <div id="word">&nbsp;</div>
+  </div>
+  <div id="field">
+    <div id="turn"><div class="who"></div><div class="sub"></div><div class="go">Tap to start</div></div>
+  </div>
+</div>
+<div id="cheer"><div class="w"></div><div class="d"></div></div>
+
+<div id="overlay">
+  <div class="card">
+    <h1 id="logo" aria-label="Word Pop: Definition"></h1>
+    <div class="seg" id="modeSeg">
+      <button data-mode="solo" class="on">Solo</button><button data-mode="battle">Battle</button><button data-mode="teams">Teams</button>
+    </div>
+    <div class="seg" id="nSeg" hidden>
+      <button data-n="2" class="on">2 players</button><button data-n="3">3 players</button><button data-n="4">4 players</button>
+    </div>
+    <p id="modeNote"></p>
+    <button class="big" style="background:#a7f3d0" data-lvl="0">Easy<small>everyday words</small></button>
+    <button class="big" style="background:#fde68a" data-lvl="1">Medium<small>college-level words</small></button>
+    <button class="big" style="background:#fbcfe8" data-lvl="2">Hard<small>words that win arguments</small></button>
+    <button class="big" style="background:#fca5a5" data-lvl="3">Extreme<small>words almost nobody knows</small></button>
+    <div class="opt"><span>Sounds and read-aloud</span><button class="toggle on" id="tSound"></button></div>
+    <div class="opt"><span>Calm mode (slow bubbles)</span><button class="toggle" id="tCalm"></button></div>
+    <a href="privacy.html" style="display:inline-block;margin-top:8px;color:rgba(255,255,255,.7);font-size:14px">Privacy policy</a>
+  </div>
+</div>
+
+<div id="end">
+  <div class="card">
+    <h1 id="endTitle" style="font-size:34px"></h1>
+    <p id="endText"></p>
+    <div id="endList"></div>
+    <button class="big" id="againBtn" style="background:#a7f3d0">Start over</button>
+    <button class="big" id="endMenuBtn" style="background:#c7d2fe;font-size:18px">Menu</button>
+  </div>
+</div>
+
+<script>
+/* 300 words per level, grouped by part of speech: a = adjectives, n = nouns, v = verbs */
+const DATA = [{"a":[["ABUNDANT","more than enough"],["CANDID","honest and direct"],["FRUGAL","careful with money"],["VIVID","bright and clear"],["WEARY","very tired"],["BRISK","quick and energetic"],["FEEBLE","weak, lacking strength"],["HASTY","done too quickly"],["JOVIAL","cheerful and friendly"],["KEEN","eager; sharp"],["LENIENT","not strict"],["MEAGER","small in amount"],["OBSOLETE","no longer in use"],["PLACID","calm and peaceful"],["RELUCTANT","unwilling, hesitant"],["SCARCE","hard to find"],["TEDIOUS","long and boring"],["VACANT","empty, unoccupied"],["ABSURD","ridiculous, makes no sense"],["ELATED","extremely happy"],["GENUINE","real, not fake"],["HOSTILE","unfriendly, aggressive"],["IMMENSE","extremely large"],["ANCIENT","very old"],["ANXIOUS","worried and uneasy"],["AWKWARD","clumsy and ill at ease"],["BASHFUL","shy, easily embarrassed"],["BITTER","sharp-tasting; resentful"],["BLAND","lacking flavor"],["BOLD","brave and confident"],["BRITTLE","hard but easily broken"],["BULKY","large and hard to handle"],["CASUAL","relaxed, informal"],["CAUTIOUS","careful to avoid risk"],["COARSE","rough in texture"],["COMPACT","small and tightly packed"],["COSTLY","expensive"],["COZY","warm and comfortable"],["CRAFTY","clever at tricking others"],["CRUCIAL","extremely important"],["CURIOUS","eager to know"],["DAINTY","small and delicate"],["DAMP","slightly wet"],["DARING","willing to take risks"],["DENSE","thick, closely packed"],["DISMAL","gloomy and depressing"],["DISTANT","far away"],["DROWSY","sleepy"],["DULL","not sharp; not exciting"],["EERIE","strange and spooky"],["ELEGANT","graceful and stylish"],["ENORMOUS","huge"],["ESSENTIAL","absolutely needed"],["EVIDENT","plain to see"],["EXOTIC","foreign and unusual"],["FAINT","barely noticeable"],["FAMISHED","extremely hungry"],["FATAL","causing death"],["FERTILE","able to produce growth"],["FIERCE","violent and intense"],["FLIMSY","thin and easily damaged"],["FOND","having a liking for"],["FRAGILE","delicate, easily broken"],["FRANK","open and blunt"],["FRIGID","extremely cold"],["FURIOUS","extremely angry"],["GENEROUS","willing to give freely"],["GENTLE","soft and mild"],["GIGANTIC","enormously big"],["GLOOMY","dark and sad"],["GRATEFUL","thankful"],["GRIM","stern and serious"],["GULLIBLE","easily fooled"],["HARSH","rough and severe"],["HAUGHTY","proud and snobbish"],["HEARTY","warm and vigorous"],["HECTIC","wildly busy"],["HUMBLE","not proud; modest"],["HUMID","moist and sticky"],["IDLE","not active or working"],["IDEAL","perfect for the purpose"],["IDENTICAL","exactly the same"],["ILLEGAL","against the law"],["JEALOUS","envious of others"],["JAGGED","having sharp rough edges"],["LAVISH","rich and extravagant"],["LOYAL","faithful and true"],["LUCID","clear and easy to follow"],["MASSIVE","large and heavy"],["MATURE","fully grown"],["MERRY","full of fun and laughter"],["MINOR","of little importance"],["MOIST","a little wet"],["MURKY","dark and cloudy"],["NAIVE","lacking experience"],["NIMBLE","quick and light on foot"],["NOBLE","having high morals"],["NUMB","unable to feel"],["NUMEROUS","many in number"],["OBVIOUS","easy to see or grasp"],["OPAQUE","not see-through"],["ORNATE","heavily decorated"],["PECULIAR","strange in a curious way"],["PETTY","small-minded, trivial"],["PLUMP","pleasantly round"],["POLITE","showing good manners"],["PRECISE","exact and accurate"],["PRIOR","coming before"],["PROMPT","done without delay"],["QUAINT","charmingly old-fashioned"],["RADIANT","glowing brightly"],["RAPID","very fast"],["RARE","not common"],["RECKLESS","careless of danger"],["RIGID","stiff, not bending"],["ROBUST","strong and healthy"],["RUGGED","rough and tough"],["RURAL","of the countryside"],["SAVAGE","wild and brutal"],["SECURE","safe from harm"],["SERENE","peaceful and untroubled"],["SHABBY","worn and run-down"],["SHREWD","sharp in judgment"],["SINCERE","truly meant"],["SLENDER","gracefully thin"],["SLUGGISH","slow and lacking energy"],["SLY","sneaky and cunning"],["SOLEMN","serious and formal"],["SPACIOUS","having lots of room"],["STALE","no longer fresh"],["STURDY","strongly built"],["SUPERB","excellent"],["SWIFT","moving very fast"],["TAME","not wild"],["TENDER","soft and loving"],["TIDY","neat and in order"],["TIMID","easily frightened"],["TOXIC","poisonous"],["TRIVIAL","of little value"],["UNIQUE","one of a kind"],["URBAN","of the city"],["URGENT","needing action now"],["VAGUE","not clearly stated"],["VAIN","too proud of one's looks"],["VALID","sound and acceptable"],["VAST","very wide in extent"],["VIGOROUS","full of energy"],["VITAL","necessary for life"],["WARY","on guard, watchful"],["WICKED","evil"],["WITTY","clever and funny"],["ZANY","wildly silly"],["ABRUPT","sudden and unexpected"],["ACCURATE","free from error"],["AMPLE","plenty"],["APT","fitting, suitable"],["ARID","very dry"],["BLEAK","bare and hopeless"],["BLUNT","having a dull edge"],["CHRONIC","lasting a long time"],["CORDIAL","warm and polite"]],"n":[["NOVICE","a beginner"],["ALLY","a partner in a cause"],["ANTIDOTE","a cure for poison"],["BANQUET","a large formal meal"],["BLUNDER","a careless mistake"],["BOUNDARY","a dividing line"],["BRAWL","a noisy fight"],["BURDEN","a heavy load"],["CALAMITY","a terrible disaster"],["CHAOS","total disorder"],["COWARD","one who lacks courage"],["CUSTOM","a usual practice"],["DEBRIS","scattered wreckage"],["DECADE","a period of ten years"],["DILEMMA","a hard choice"],["DROUGHT","a long dry spell"],["ERA","a period in history"],["ERRAND","a short trip for a task"],["FAMINE","a severe food shortage"],["FEAT","an impressive deed"],["FLAW","a defect"],["FOE","an enemy"],["FRAGMENT","a broken piece"],["GLIMPSE","a quick look"],["GRUDGE","lasting resentment"],["HABITAT","an animal's natural home"],["HAZARD","a danger"],["HOAX","a trick meant to fool"],["IMPACT","a strong effect"],["INSIGHT","a deep grasp of something"],["KNACK","a natural skill"],["LEGEND","an old famous story"],["MENACE","a threat"],["MIRAGE","an optical illusion"],["MOTIVE","a reason for acting"],["MYTH","a widely held false belief"],["OATH","a solemn promise"],["OBSTACLE","something in the way"],["OMEN","a sign of the future"],["ORDEAL","a painful experience"],["OUTCOME","a result"],["PEER","an equal"],["PLEA","an urgent request"],["PORTION","a part or share"],["QUEST","a long search"],["REMEDY","a cure"],["RIVAL","a competitor"],["ROUTINE","a regular way of doing"],["RUMOR","an unproven story"],["SCHEME","a secret plan"],["SEQUEL","a follow-up story"],["SHELTER","a place of safety"],["SLOGAN","a catchy phrase"],["SOURCE","where something comes from"],["STRATEGY","a plan to reach a goal"],["SUMMIT","the highest point"],["SURPLUS","an extra amount"],["SYMPTOM","a sign of illness"],["TALENT","a natural ability"],["TRAIT","a personal quality"],["TRIUMPH","a great victory"],["TYRANT","a cruel ruler"],["VERDICT","a jury's decision"],["VICTIM","one who is harmed"],["VOW","a serious pledge"],["WAGE","pay for work"],["WRATH","intense anger"],["ZEAL","great enthusiasm"]],"v":[["DWINDLE","to slowly shrink"],["ABANDON","to leave behind"],["ABOLISH","to do away with"],["ACQUIRE","to gain or get"],["ADAPT","to adjust to change"],["ADMIRE","to respect and look up to"],["BAFFLE","to confuse completely"],["BANISH","to send away for good"],["BOAST","to brag"],["CEASE","to stop"],["CHERISH","to hold dear"],["COAX","to gently persuade"],["COLLIDE","to crash together"],["COMPEL","to force"],["CONCEAL","to hide"],["CONFESS","to admit guilt"],["CONSUME","to eat or use up"],["DECEIVE","to mislead on purpose"],["DECLINE","to refuse politely"],["DEMOLISH","to tear down"],["DEPART","to go away"],["DESPISE","to hate deeply"],["DETECT","to notice or discover"],["DEVOUR","to eat hungrily"],["DISCARD","to throw away"],["DISPUTE","to argue against"],["DREAD","to fear greatly"],["ENDURE","to last through hardship"],["ENVY","to want what others have"],["EVADE","to escape or avoid"],["EXPAND","to grow larger"],["FLEE","to run from danger"],["FLOURISH","to grow and prosper"],["GLARE","to stare angrily"],["GRIEVE","to feel deep sorrow"],["HESITATE","to pause in doubt"],["HOARD","to stockpile and hide"],["IGNITE","to set on fire"],["IMITATE","to copy"],["INHABIT","to live in"],["INSIST","to demand firmly"],["LINGER","to stay longer than needed"],["LOATHE","to feel disgust for"],["MEDDLE","to interfere"],["MIMIC","to copy for laughs"],["NEGLECT","to fail to care for"],["OBTAIN","to get hold of"],["OMIT","to leave out"],["PERISH","to die"],["PERSIST","to keep going"],["PONDER","to think over carefully"],["PROHIBIT","to forbid"],["PROVOKE","to stir up anger"],["PURSUE","to chase"],["RECOIL","to draw back in fear"],["REJOICE","to feel great joy"],["RESENT","to feel bitter about"],["RETREAT","to pull back"],["SCOLD","to tell off angrily"],["SEIZE","to grab suddenly"],["SOAR","to fly high"],["SOOTHE","to calm or comfort"],["STROLL","to walk slowly"],["SUMMON","to call to come"],["TAUNT","to mock and tease"],["THRIVE","to do very well"],["TOIL","to work very hard"],["VANISH","to disappear"],["WANDER","to roam without aim"],["WITHER","to dry up and shrink"],["YEARN","to long for"]]},{"a":[["AMBIGUOUS","has more than one meaning"],["BENEVOLENT","kind and generous"],["COHERENT","logical and clear"],["DILIGENT","steady and hardworking"],["ELOQUENT","well-spoken"],["FUTILE","pointless, sure to fail"],["GREGARIOUS","loves company"],["METICULOUS","very attentive to detail"],["NOSTALGIC","longing for the past"],["PRAGMATIC","practical, realistic"],["RESILIENT","bounces back quickly"],["SKEPTICAL","full of doubt"],["TENACIOUS","refuses to give up"],["UBIQUITOUS","found everywhere"],["VOLATILE","likely to change suddenly"],["ZEALOUS","fiercely devoted"],["ADJACENT","next to"],["CONCISE","brief and to the point"],["INEVITABLE","certain to happen"],["LUCRATIVE","very profitable"],["MUNDANE","ordinary, dull"],["OMINOUS","threatening, a bad sign"],["PROLIFIC","highly productive"],["SUBTLE","hard to notice"],["ABSTRACT","existing only as an idea"],["ADAMANT","refusing to budge"],["ADEPT","highly skilled"],["AFFABLE","friendly, easy to talk to"],["ALOOF","distant and cool"],["AMIABLE","pleasant and likable"],["APATHETIC","showing no interest"],["ARBITRARY","based on whim, not reason"],["ARDUOUS","requiring great effort"],["ARTICULATE","able to speak clearly"],["ASTUTE","sharp and perceptive"],["AUSTERE","plain and severe"],["AUTHENTIC","the real thing"],["BANAL","dull and unoriginal"],["BELATED","coming too late"],["BIZARRE","very strange"],["BOISTEROUS","loud and rowdy"],["CHARISMATIC","having magnetic charm"],["COMPATIBLE","able to exist together"],["COMPLACENT","smugly self-satisfied"],["CONDESCENDING","talking down to others"],["CONSPICUOUS","standing out clearly"],["CONTENTIOUS","causing argument"],["CREDIBLE","believable"],["CYNICAL","distrusting motives"],["DECISIVE","able to choose quickly"],["DEFIANT","boldly resisting"],["DESOLATE","empty and lonely"],["DEVIOUS","sneaky and dishonest"],["DISCREET","careful about privacy"],["DISMISSIVE","treating as unworthy"],["DIVERSE","showing much variety"],["DORMANT","inactive, as if asleep"],["DUBIOUS","doubtful, suspect"],["ECCENTRIC","odd in a harmless way"],["ELUSIVE","hard to catch or find"],["EMINENT","famous and respected"],["EMPHATIC","forceful in expression"],["ERRATIC","having no steady pattern"],["EXEMPT","free from a duty"],["EXPLICIT","stated fully and clearly"],["EXQUISITE","beautifully delicate"],["FEASIBLE","possible to do"],["FERVENT","intensely passionate"],["FLAGRANT","shockingly obvious"],["FORMIDABLE","inspiring fear or respect"],["FRIVOLOUS","silly, not serious"],["GRUELING","exhausting, punishing"],["HAPHAZARD","lacking any plan"],["HEINOUS","shockingly evil"],["HYPOTHETICAL","supposed, not real"],["IMMINENT","about to happen"],["IMPARTIAL","fair, favoring no side"],["IMPECCABLE","flawless"],["IMPLICIT","implied, not stated"],["IMPULSIVE","acting without thinking"],["INCESSANT","never stopping"],["INDIFFERENT","not caring either way"],["INDIGNANT","angry at unfairness"],["INEPT","lacking skill"],["INFAMOUS","famous for something bad"],["INGENIOUS","cleverly inventive"],["INHERENT","built in by nature"],["INNATE","present from birth"],["INSATIABLE","impossible to satisfy"],["INTREPID","fearless"],["INTRICATE","very detailed"],["INTUITIVE","known without reasoning"],["IRATE","very angry"],["JUDICIOUS","showing good judgment"],["LETHARGIC","sluggish and drowsy"],["MALICIOUS","meaning to do harm"],["MANDATORY","required"],["MEDIOCRE","only average"],["MELANCHOLY","sadly thoughtful"],["MOROSE","sullen and gloomy"],["NEGLIGENT","careless of duty"],["NOTORIOUS","widely known for bad deeds"],["OBLIVIOUS","unaware"],["OBSCURE","little known"],["OBSTINATE","stubborn"],["OPTIMISTIC","expecting the best"],["OPULENT","richly luxurious"],["PARANOID","wrongly suspicious"],["PATHETIC","arousing pity"],["PENSIVE","deep in thought"],["PERPETUAL","lasting forever"],["PERSISTENT","continuing firmly"],["PERTINENT","relevant"],["PLAUSIBLE","seeming reasonable"],["POIGNANT","deeply moving"],["POMPOUS","self-important"],["POTENT","powerful"],["PRECARIOUS","dangerously unstable"],["PREMATURE","happening too early"],["PRESTIGIOUS","highly respected"],["PROFOUND","very deep"],["PRUDENT","wise and careful"],["RADICAL","extreme; fundamental"],["RAMPANT","spreading unchecked"],["REDUNDANT","needlessly repeated"],["RELENTLESS","never letting up"],["REMORSEFUL","deeply sorry"],["REPUTABLE","having a good name"],["RUTHLESS","without mercy"],["SARCASTIC","mocking with irony"],["SCRUPULOUS","strictly honest"],["SOMBER","dark and serious"],["SPONTANEOUS","unplanned"],["SPORADIC","happening now and then"],["STAGNANT","not flowing or growing"],["STOIC","enduring without complaint"],["STRINGENT","strict and exacting"],["SUCCINCT","briefly expressed"],["SUPERFICIAL","only on the surface"],["TACTFUL","careful not to offend"],["TANGIBLE","able to be touched"],["TENTATIVE","not yet certain"],["TRANQUIL","free from disturbance"],["UNANIMOUS","agreed by everyone"],["VERBOSE","using too many words"],["VERSATILE","having many uses"],["VIABLE","able to work or survive"],["VIGILANT","staying watchful"],["VINDICTIVE","seeking revenge"],["VULNERABLE","open to harm"],["WHIMSICAL","playfully fanciful"],["WISTFUL","sadly longing"],["ABRASIVE","harsh and irritating"],["ACCESSIBLE","easy to reach"],["AESTHETIC","concerning beauty"],["ALTRUISTIC","selflessly giving"],["ANIMATED","lively"],["ANONYMOUS","of unknown name"],["AVID","eager and devoted"]],"n":[["EMPATHY","sharing another's feelings"],["ADVERSARY","an opponent"],["ADVOCATE","one who argues for a cause"],["AFFINITY","a natural attraction"],["ANALOGY","a comparison to explain"],["ANARCHY","absence of government"],["ANECDOTE","a short personal story"],["ANOMALY","something out of the norm"],["APATHY","lack of interest"],["ASSET","a valuable thing"],["AUDACITY","bold nerve"],["BIAS","unfair preference"],["BREVITY","shortness of expression"],["CATALYST","something that sparks change"],["CLICHE","an overused expression"],["COALITION","a temporary alliance"],["CONSENSUS","general agreement"],["CONTEMPT","scornful disrespect"],["CRITERION","a standard for judging"],["DECEIT","dishonest trickery"],["DEFICIT","a shortfall"],["DETERRENT","something that discourages"],["DISCORD","lack of harmony"],["DISPARITY","a great difference"],["DOGMA","beliefs held without question"],["ENIGMA","a puzzling thing"],["EPIPHANY","a sudden realization"],["EPITOME","a perfect example"],["ETHICS","moral principles"],["EUPHORIA","intense happiness"],["FACADE","a false front"],["FALLACY","a mistaken belief"],["FIASCO","a complete failure"],["FORTITUDE","courage in hardship"],["HIERARCHY","a ranked order"],["HINDSIGHT","wisdom after the event"],["HYPOCRISY","preaching but not practicing"],["INCENTIVE","a reason to act"],["INERTIA","resistance to change"],["INTEGRITY","strong moral character"],["IRONY","opposite of what is expected"],["LEGACY","what one leaves behind"],["LOOPHOLE","a gap in the rules"],["MALICE","desire to harm"],["MENTOR","a trusted adviser"],["MOMENTUM","force of movement"],["NOVELTY","newness"],["NUANCE","a subtle shade of meaning"],["PARADOX","a truth that seems absurd"],["PARADIGM","a model or pattern"],["PINNACLE","the highest peak"],["PLIGHT","a difficult situation"],["PRECEDENT","an earlier example to follow"],["PREMISE","a starting assumption"],["PRESTIGE","high standing"],["PRODIGY","a young genius"],["PROTOCOL","official procedure"],["REPERTOIRE","a stock of skills"],["RHETORIC","persuasive language"],["SATIRE","humor that mocks"],["SCRUTINY","close inspection"],["STAMINA","staying power"],["STIGMA","a mark of shame"],["TACT","skill in handling people"],["TANGENT","a side topic"],["TURMOIL","great confusion"],["ULTIMATUM","a final demand"],["UTOPIA","a perfect place"],["VENDETTA","a long bitter feud"],["VIGOR","energy and strength"],["ZENITH","the peak"]],"v":[["ALLEVIATE","to make pain less severe"],["ALLOCATE","to set aside for a purpose"],["AMEND","to change for the better"],["ANTICIPATE","to expect"],["APPEASE","to calm by giving in"],["ASSERT","to state firmly"],["BOLSTER","to prop up"],["COERCE","to force by threats"],["COLLABORATE","to work together"],["COMPENSATE","to make up for"],["COMPLY","to obey a rule"],["CONCEDE","to admit defeat"],["CONDEMN","to strongly disapprove"],["CONDONE","to overlook a wrong"],["CONTEMPLATE","to think about deeply"],["CORROBORATE","to back up with evidence"],["CULTIVATE","to grow or develop"],["DEDUCE","to work out by reasoning"],["DEFER","to put off"],["DEPICT","to show in a picture"],["DETER","to discourage"],["DEVIATE","to stray from the path"],["DIMINISH","to make smaller"],["DISCERN","to see clearly"],["DISCLOSE","to reveal"],["DISPEL","to drive away"],["DISRUPT","to throw into disorder"],["DIVULGE","to tell a secret"],["ELABORATE","to explain in more detail"],["ELICIT","to draw out"],["EMBELLISH","to add fancy details"],["EMULATE","to imitate and match"],["ENDORSE","to publicly approve"],["ENHANCE","to improve"],["ERADICATE","to wipe out"],["EXACERBATE","to make worse"],["EXPLOIT","to use unfairly"],["FABRICATE","to make up"],["FLUCTUATE","to rise and fall"],["FORFEIT","to give up as a penalty"],["HINDER","to block or hold back"],["IMPEDE","to slow down or block"],["IMPLY","to hint"],["INFER","to conclude from clues"],["INSTIGATE","to stir up"],["INTERVENE","to step in"],["MEDIATE","to help settle a dispute"],["MITIGATE","to make less severe"],["NEGOTIATE","to bargain"],["NURTURE","to care for and raise"],["PERCEIVE","to become aware of"],["PERSEVERE","to keep trying"],["PLACATE","to soothe an angry person"],["PROCRASTINATE","to delay doing"],["RECONCILE","to restore friendship"],["REFUTE","to prove wrong"],["RELINQUISH","to let go of"],["REPRIMAND","to scold formally"],["RETALIATE","to strike back"],["SCRUTINIZE","to examine closely"],["SPECULATE","to guess"],["SUBDUE","to bring under control"],["SUPPRESS","to hold down by force"],["SURPASS","to go beyond"],["SUSTAIN","to keep going over time"],["THWART","to block a plan"],["UNDERMINE","to weaken secretly"],["VALIDATE","to confirm as sound"],["VINDICATE","to clear of blame"],["WAIVE","to give up a right"]]},{"a":[["CAPRICIOUS","impulsive and fickle"],["EPHEMERAL","lasting a short time"],["FASTIDIOUS","fussy, hard to please"],["GARRULOUS","overly talkative"],["LACONIC","using few words"],["MAGNANIMOUS","generous and forgiving"],["NEFARIOUS","wicked, criminal"],["OBSEQUIOUS","overly eager to please"],["PARSIMONIOUS","extremely stingy"],["QUERULOUS","always complaining"],["RECALCITRANT","stubbornly defiant"],["SANGUINE","optimistic, hopeful"],["TRUCULENT","eager to fight"],["WINSOME","charming, appealing"],["ESOTERIC","understood by few"],["PERFUNCTORY","done with little effort"],["INSIPID","bland, lacking flavor"],["ABSTEMIOUS","sparing with food and drink"],["ABSTRUSE","hard to understand"],["ACERBIC","sharp and biting in tone"],["AMBIVALENT","having mixed feelings"],["AMORPHOUS","without a clear shape"],["ANACHRONISTIC","out of its proper time"],["ANTITHETICAL","directly opposed"],["ARCANE","known only to insiders"],["ASCETIC","practicing self-denial"],["ASSIDUOUS","constant in effort"],["AUDACIOUS","recklessly bold"],["AUSPICIOUS","promising good fortune"],["BELLICOSE","warlike"],["BENIGN","harmless"],["BOMBASTIC","pompous in speech"],["BUCOLIC","of pleasant country life"],["CACOPHONOUS","harsh-sounding"],["CALLOUS","emotionally hardened"],["CAUSTIC","burning; bitterly cutting"],["CIRCUMSPECT","careful to weigh risks"],["CLANDESTINE","done in secret"],["COGENT","convincing and clear"],["COMPLICIT","involved in wrongdoing"],["CONTRITE","sorry for a wrong"],["CONVOLUTED","twisted and complicated"],["COPIOUS","plentiful"],["CURSORY","quick and shallow"],["DELETERIOUS","harmful"],["DEMURE","quiet and modest"],["DERISIVE","mocking"],["DESULTORY","jumping around aimlessly"],["DIAPHANOUS","light and see-through"],["DIDACTIC","meant to teach"],["DIFFIDENT","lacking self-confidence"],["DILATORY","slow, causing delay"],["DISPARATE","utterly unlike"],["DOGMATIC","rigid in belief"],["DUPLICITOUS","two-faced"],["EBULLIENT","bubbling with joy"],["ECLECTIC","drawn from many sources"],["EFFUSIVE","gushing with emotion"],["EGREGIOUS","shockingly bad"],["ENIGMATIC","mysterious"],["ERUDITE","deeply learned"],["EXACTING","demanding great care"],["FACETIOUS","joking at the wrong time"],["FALLACIOUS","based on a false idea"],["FATUOUS","smugly foolish"],["FECKLESS","weak and ineffective"],["FERVID","burning with passion"],["FLORID","flowery; flushed"],["FORTUITOUS","happening by lucky chance"],["FRACTIOUS","irritable and unruly"],["FURTIVE","sneaky, avoiding notice"],["GRANDIOSE","absurdly grand"],["GRATUITOUS","uncalled for"],["HACKNEYED","worn out by overuse"],["HAPLESS","unlucky"],["HERMETIC","sealed airtight"],["IDIOSYNCRATIC","peculiar to one person"],["IGNOMINIOUS","shameful"],["IMMUTABLE","unable to be changed"],["IMPASSIVE","showing no emotion"],["IMPERIOUS","bossy and arrogant"],["IMPERTURBABLE","impossible to rattle"],["IMPERVIOUS","unable to be penetrated"],["IMPETUOUS","acting rashly"],["IMPLACABLE","unable to be soothed"],["INCHOATE","just begun, unformed"],["INCORRIGIBLE","beyond reform"],["INDOLENT","lazy"],["INEFFABLE","beyond words"],["INEXORABLE","impossible to stop"],["INGENUOUS","innocent and trusting"],["INIMICAL","hostile, harmful"],["INSCRUTABLE","impossible to read"],["INSIDIOUS","slowly and subtly harmful"],["INSOLVENT","unable to pay debts"],["INTRANSIGENT","refusing to compromise"],["INVETERATE","deep-rooted by habit"],["IRASCIBLE","quick to anger"],["LANGUID","pleasantly sluggish"],["LICENTIOUS","morally loose"],["LOQUACIOUS","very talkative, chatty"],["LUMINOUS","giving off light"],["MALLEABLE","easily shaped"],["MENDACIOUS","lying"],["MERCURIAL","quick to change moods"],["MUNIFICENT","lavishly generous"],["MYOPIC","short-sighted"],["NEBULOUS","hazy, ill-defined"],["OBDURATE","hard-hearted, unyielding"],["OBTUSE","slow to understand"],["OFFICIOUS","pushy with unwanted help"],["ONEROUS","heavy and burdensome"],["OSTENTATIOUS","showy"],["PEDANTIC","fussy about small rules"],["PERFIDIOUS","treacherous"],["PERNICIOUS","quietly destructive"],["PETULANT","childishly sulky"],["PHLEGMATIC","calm and unemotional"],["PIOUS","devoutly religious"],["PITHY","short and full of meaning"],["PLATONIC","friendly, not romantic"],["POLEMICAL","fiercely argued"],["PRECOCIOUS","advanced for one's age"],["PRESCIENT","knowing beforehand"],["PRISTINE","pure and unspoiled"],["PRODIGAL","wastefully extravagant"],["PROFLIGATE","recklessly wasteful"],["PROSAIC","dull and ordinary"],["PUGNACIOUS","quick to quarrel"],["PUNCTILIOUS","strict about etiquette"],["QUIESCENT","quiet and still"],["QUIXOTIC","nobly unrealistic"],["RAPACIOUS","greedily grasping"],["RECONDITE","little known, obscure"],["REDOLENT","strongly suggestive of"],["REPREHENSIBLE","deserving blame"],["RETICENT","unwilling to speak"],["SACROSANCT","too sacred to touch"],["SALIENT","most noticeable"],["SARDONIC","grimly mocking"],["SOPORIFIC","causing sleep"],["SPECIOUS","seeming true but false"],["SPURIOUS","fake, not genuine"],["STOLID","dull and unmoved"],["STRIDENT","loud and grating"],["SUPERCILIOUS","haughtily scornful"],["SUPERFLUOUS","more than needed"]],"n":[["ACRIMONY","bitter ill will"],["DEARTH","a shortage"],["HARANGUE","a long angry speech"],["ICONOCLAST","attacker of cherished beliefs"],["VERACITY","being truthful"],["PENCHANT","a strong liking"],["ACUMEN","sharp judgment"],["ALACRITY","eager speed"],["ANATHEMA","something hated"],["ANTIPATHY","deep dislike"],["APLOMB","cool self-confidence"],["APOGEE","the highest point"],["ARCHETYPE","an original model"],["AVARICE","extreme greed"],["BEHEMOTH","something enormous"],["BOON","a timely benefit"],["CABAL","a secret plotting group"],["CACHE","a hidden store"],["CHARLATAN","a fraud who fakes skill"],["CHICANERY","trickery"],["CONUNDRUM","a baffling problem"],["DEBACLE","a humiliating failure"],["DEFERENCE","polite respect"],["DEMAGOGUE","a leader who stirs up mobs"],["DENIZEN","an inhabitant"],["DICHOTOMY","a split into two"],["DILETTANTE","a dabbler"],["DIATRIBE","a bitter angry rant"],["EFFRONTERY","shameless boldness"],["ENMITY","deep hostility"],["ENNUI","weary boredom"],["EQUANIMITY","calm under stress"],["EULOGY","a speech praising the dead"],["EUPHEMISM","a mild word for a harsh one"],["FOIBLE","a minor weakness"],["GAFFE","a social blunder"],["HEGEMONY","dominance over others"],["HEDONIST","a pleasure seeker"],["HUBRIS","excessive pride"],["IMPUNITY","freedom from punishment"],["INVECTIVE","abusive language"],["JUGGERNAUT","an unstoppable force"],["JUXTAPOSITION","placing side by side"],["KUDOS","praise for achievement"],["LEVITY","lightness, humor"],["LITANY","a long tedious list"],["MALAISE","a vague unease"],["MAVERICK","an independent thinker"],["MISANTHROPE","a hater of humankind"],["MORASS","a swamp; a mess"],["NADIR","the lowest point"],["NEMESIS","an unbeatable foe"],["NEOPHYTE","a newcomer"],["OPPROBRIUM","public disgrace"],["PANACEA","a cure-all"],["PARAGON","a model of excellence"],["PARIAH","an outcast"],["PATHOS","a quality stirring pity"],["PLATITUDE","a stale remark"],["PLETHORA","an excess"],["QUAGMIRE","a sticky situation"],["RANCOR","long-held bitterness"],["RAPPORT","a friendly bond"],["RECLUSE","one who lives alone"],["RESPITE","a short rest"],["SCHISM","a split within a group"],["SOLACE","comfort in sorrow"],["SOPHISTRY","clever false reasoning"],["SYCOPHANT","a self-serving flatterer"],["TIRADE","a long furious outburst"],["TORPOR","sluggish inactivity"],["TREPIDATION","nervous fear"],["VENEER","a thin outer layer"],["VICISSITUDE","a change of fortune"],["VITRIOL","cruel criticism"],["ZEALOT","a fanatic"],["ANTITHESIS","the exact opposite"],["BRAVADO","a show of false courage"],["CAVEAT","a warning"],["CONNOISSEUR","an expert judge of taste"],["ENCLAVE","a distinct area inside another"],["IMPASSE","a deadlock"],["INNUENDO","an indirect hint"],["MIEN","bearing or manner"],["NEXUS","a central link"],["PARITY","equality"],["PRETEXT","a false reason"],["QUANDARY","a state of doubt"],["REVERIE","a daydream"]],"v":[["USURP","to seize power wrongfully"],["OBFUSCATE","to make unclear"],["EQUIVOCATE","to dodge with vague words"],["ABDICATE","to give up a throne"],["ABHOR","to hate intensely"],["ABJURE","to formally renounce"],["ABROGATE","to repeal a law"],["ADMONISH","to warn or scold"],["AMELIORATE","to make better"],["ASSUAGE","to soothe a feeling"],["BELIE","to give a false idea of"],["BERATE","to scold harshly"],["BURGEON","to grow rapidly"],["CAJOLE","to coax with flattery"],["CASTIGATE","to punish severely"],["CIRCUMVENT","to get around"],["CONFLATE","to merge into one"],["DEBUNK","to expose as false"],["DELINEATE","to outline precisely"],["DENIGRATE","to speak of as worthless"],["DEPRECATE","to express disapproval"],["DISPARAGE","to speak ill of"],["DISSEMBLE","to hide true feelings"],["DISSEMINATE","to spread widely"],["EMBEZZLE","to steal entrusted money"],["ENGENDER","to give rise to"],["ENERVATE","to drain of energy"],["ESCHEW","to avoid on purpose"],["EXCORIATE","to criticize savagely"],["EXONERATE","to free from blame"],["EXPEDITE","to speed up"],["EXTOL","to praise highly"],["FOMENT","to stir up trouble"],["GALVANIZE","to shock into action"],["IMPUGN","to call into question"],["INCULCATE","to teach by repetition"],["INUNDATE","to flood"],["LAMBASTE","to criticize harshly"],["LAMENT","to mourn aloud"],["LANGUISH","to grow weak"],["MOLLIFY","to calm someone's anger"],["OBVIATE","to make unnecessary"],["OSCILLATE","to swing back and forth"],["OSTRACIZE","to shut out of a group"],["PERUSE","to read carefully"],["PONTIFICATE","to preach pompously"],["PRECLUDE","to rule out ahead of time"],["PREVARICATE","to dodge the truth"],["PROSCRIBE","to forbid officially"],["RATIFY","to approve formally"],["REBUKE","to criticize sharply"],["RECANT","to take back a statement"],["REPUDIATE","to reject as untrue"],["RESCIND","to cancel officially"],["REVERE","to deeply respect"],["SATIATE","to satisfy fully"],["STYMIE","to block or stump"],["SUPPLANT","to take the place of"],["TRANSGRESS","to break a rule"],["TRUNCATE","to cut short"],["VACILLATE","to waver between choices"],["VENERATE","to respect with deep awe"],["VILIFY","to slander"],["WANE","to shrink or fade"]]},{"a":[["PERSPICACIOUS","keenly insightful"],["PUSILLANIMOUS","cowardly"],["SESQUIPEDALIAN","using very long words"],["CALLIPYGIAN","having shapely buttocks"],["CREPUSCULAR","active at twilight"],["ULTRACREPIDARIAN","opining beyond one's field"],["OBSTREPEROUS","noisy and unruly"],["EXIGUOUS","very scanty"],["NUGATORY","of no value"],["PERIPATETIC","traveling place to place"],["MELLIFLUOUS","sweet-sounding"],["HIRSUTE","hairy"],["LUGUBRIOUS","mournful, gloomy"],["ABSTERGENT","cleansing"],["ACEPHALOUS","headless; leaderless"],["ADUMBRAL","shadowy"],["AESTIVAL","of summer"],["ALEATORY","depending on chance"],["ANFRACTUOUS","full of twists and turns"],["ATRABILIOUS","gloomy and ill-tempered"],["BIBULOUS","fond of drinking"],["BRUMOUS","foggy and wintry"],["CADUCOUS","falling off early"],["CALIGINOUS","dark and misty"],["CAPTIOUS","quick to find fault"],["CHTHONIC","of the underworld"],["CONTUMACIOUS","stubbornly disobedient"],["CORUSCATING","sparkling"],["CRAPULOUS","sick from too much drink"],["DAEDAL","skillfully intricate"],["DEFEASIBLE","able to be annulled"],["DIAPHORETIC","causing sweat"],["DISCALCED","barefoot"],["EDACIOUS","devouring; greedy"],["EFFULGENT","shining brilliantly"],["ELEEMOSYNARY","relating to charity"],["ERISTIC","fond of arguing"],["ESCULENT","fit to eat"],["ESURIENT","hungry; greedy"],["EXIGENT","urgently demanding"],["FACINOROUS","atrociously wicked"],["FATIDIC","prophetic, fateful"],["FLAGITIOUS","shamefully criminal"],["FULIGINOUS","sooty"],["FULSOME","excessively flattering"],["GLABROUS","smooth and hairless"],["GNOMIC","short, wise and puzzling"],["HEBDOMADAL","weekly"],["HEBETUDINOUS","mentally dull"],["HIEMAL","of winter"],["HISPID","bristly"],["IMMARCESCIBLE","unfading"],["INCARNADINE","flesh-colored or crimson"],["INELUCTABLE","impossible to escape"],["INFRANGIBLE","unbreakable"],["INSPISSATED","thickened"],["JEJUNE","dull; childish"],["LACHRYMOSE","tearful"],["LENTIC","of still water"],["LOUCHE","shady yet appealing"],["MACILENT","thin, lean"],["MATUTINAL","of the morning"],["MEPHITIC","foul-smelling"],["MERETRICIOUS","flashy but worthless"],["MINATORY","threatening"],["MORIBUND","near death"],["NACREOUS","pearly"],["NESCIENT","ignorant"],["NIDOROUS","smelling of burnt fat"],["NIVEOUS","snowy"],["NOCTIVAGANT","wandering by night"],["NUMINOUS","spiritually awe-inspiring"],["OLEAGINOUS","oily; smarmy"],["OTIOSE","idle; of no real value"],["PALUDAL","of marshes"],["PAVONINE","like a peacock"],["PELLUCID","perfectly clear"],["PENURIOUS","extremely poor; stingy"],["PERFERVID","intensely passionate"],["PICAYUNE","petty, trifling"],["PINGUID","fat, greasy"],["PLANGENT","loud and mournful"],["PROLIX","tediously wordy"],["PUISSANT","powerful"],["PULVERULENT","dusty, crumbly"],["REBARBATIVE","repellent"],["RECREANT","cowardly; disloyal"],["REFULGENT","shining radiantly"],["RIPARIAN","of a riverbank"],["RUBICUND","ruddy-faced"],["RUGOSE","wrinkled"],["SAPONACEOUS","soapy"],["SATURNINE","sluggish and sullen"],["SEDULOUS","diligent"],["SEROTINAL","of late summer"],["SIBILANT","hissing"],["STERTOROUS","snoring heavily"],["SUBFUSC","dusky, drab"],["SYLVAN","of the woods"],["TENEBROUS","dark, shadowy"],["THEWY","muscular"],["TURBID","cloudy with sediment"],["UMBRAGEOUS","shady; easily offended"],["UXORIOUS","overly fond of one's wife"],["VATIC","prophetic, oracular"],["VELUTINOUS","velvety"],["VERIDICAL","truthful"],["VERNAL","of spring"],["VESPERTINE","of the evening"],["VIRIDESCENT","greenish"],["VITUPERATIVE","bitterly abusive"],["VULPINE","foxlike"],["XERIC","very dry"],["ZOETIC","living, vital"],["LEONINE","lionlike"],["LUPINE","wolflike"],["URSINE","bearlike"],["PISCINE","fishlike"],["ANSERINE","gooselike"],["CORVINE","crowlike"],["HIRCINE","goatlike"],["OVINE","sheeplike"],["PORCINE","piglike"],["VESPINE","wasplike"],["LIMACINE","sluglike"],["PSITTACINE","parrotlike"]],"n":[["PETRICHOR","smell of rain on dry earth"],["BORBORYGMUS","stomach rumbling"],["APRICITY","the winter sun's warmth"],["VELLEITY","a wish with no effort"],["LIMERENCE","obsessive infatuation"],["QUIDNUNC","a nosy gossip"],["SYZYGY","celestial bodies aligning"],["LOGORRHEA","a nonstop flow of words"],["PULCHRITUDE","physical beauty"],["SUSURRUS","a whispering sound"],["DESUETUDE","a state of disuse"],["ZEITGEIST","spirit of the age"],["ACNESTIS","the unreachable itchy spot"],["AGELAST","one who never laughs"],["ANAGNORISIS","a moment of recognition"],["BALLYHOO","noisy publicity"],["BIBLIOPOLE","a seller of rare books"],["BLATHERSKITE","a blustering talker"],["BRUMMAGEM","cheap showy goods"],["CACHINNATION","loud laughter"],["CATACHRESIS","misuse of a word"],["CICERONE","a guide for sightseers"],["CLERISY","the learned class"],["COCKALORUM","a boastful little man"],["CYNOSURE","a center of attention"],["DEIPNOSOPHIST","a skilled dinner talker"],["ECDYSIAST","a striptease performer"],["EIDOLON","a phantom or ideal image"],["EMBONPOINT","plumpness"],["ENCOMIUM","formal high praise"],["EPIGONE","an inferior imitator"],["FARRAGO","a confused mixture"],["FLANEUR","an idle stroller"],["FRISSON","a sudden thrill"],["GALLIMAUFRY","a confused jumble; a hash"],["GLOSSOLALIA","speaking in tongues"],["GRIMALKIN","an old female cat"],["HAGIOGRAPHY","an idolizing biography"],["HOBBLEDEHOY","an awkward youth"],["IMBROGLIO","a tangled mess"],["JEREMIAD","a long bitter lament"],["KAKISTOCRACY","rule by the worst"],["LACUNA","a gap or missing part"],["LAGNIAPPE","a small bonus gift"],["LUCUBRATION","late-night study"],["MONDEGREEN","a misheard lyric"],["MOUNTEBANK","a swindling showman"],["MUMPSIMUS","a stubbornly kept error"],["NEPENTHE","a drug of forgetting"],["NIDUS","a breeding place"],["NOSTRUM","a quack remedy"],["OBLOQUY","public abuse"],["ONEIROMANCY","telling fortunes by dreams"],["OUBLIETTE","a dungeon with a trapdoor"],["PALIMPSEST","a reused manuscript"],["PANEGYRIC","a speech of high praise"],["PANJANDRUM","a pompous official"],["PARAPRAXIS","a slip of the tongue"],["PERSIFLAGE","light teasing banter"],["PHILTRUM","groove above the upper lip"],["PLEONASM","use of needless words"],["POLTROON","an utter coward"],["PSITHURISM","rustling of leaves"],["QUINCUNX","five arranged like dice"],["QUISLING","a traitor serving invaders"],["RODOMONTADE","boastful bluster"],["SALMAGUNDI","a mixed salad; a medley"],["SCHADENFREUDE","joy at others' misfortune"],["SCIOLIST","a faker of knowledge"],["SIMULACRUM","an imitation or likeness"],["SKULDUGGERY","underhanded dealing"],["SNOLLYGOSTER","a shrewd crooked politician"],["SOBRIQUET","a nickname"],["SOLECISM","a grammar blunder"],["SPRACHGEFUHL","a feel for language"],["SYNECDOCHE","a part standing for the whole"],["TATTERDEMALION","a ragged person"],["THAUMATURGE","a miracle worker"],["TINTINNABULATION","ringing of bells"],["TMESIS","splitting a word with another"],["TROGLODYTE","a cave dweller"],["ULLAGE","empty space in a bottle"],["VERISIMILITUDE","appearance of truth"],["WELTSCHMERZ","world-weary sadness"],["ZUGZWANG","being forced to move badly"],["ZEUGMA","one word governing two senses"],["AGLET","tip of a shoelace"],["FERRULE","metal cap on a pencil"],["GLABELLA","space between the eyebrows"],["LUNULE","pale crescent on a nail"],["NURDLE","a blob of toothpaste"],["TITTLE","the dot over an i"],["OCTOTHORPE","the # symbol"],["PILCROW","the paragraph mark"],["INTERROBANG","? and ! combined"],["VIBRISSA","a whisker"],["CRWTH","an old Welsh fiddle"],["MUNTIN","strip between window panes"],["ZARF","a holder for a hot cup"],["GRAWLIX","symbols for swearing"],["TSUNDOKU","unread books piling up"],["COLLYWOBBLES","a nervous stomachache"],["GONGOOZLER","an idle canal watcher"],["SNICKERSNEE","a large knife"],["BUMBERSHOOT","an umbrella"],["CALLITHUMP","a noisy mock parade"],["DONNYBROOK","a wild brawl"],["FOOFARAW","a fuss over nothing"],["CODSWALLOP","nonsense"],["FLAPDOODLE","foolish nonsense talk"],["MUGWUMP","a political fence-sitter"],["POPINJAY","a vain, showy person"],["RAPSCALLION","a mischievous rascal"],["SLUBBERDEGULLION","a filthy slob"]],"v":[["DEFENESTRATE","to throw out a window"],["TERGIVERSATE","to keep changing sides"],["ABSQUATULATE","to leave abruptly"],["ABNEGATE","to deny oneself"],["ADUMBRATE","to foreshadow faintly"],["ANIMADVERT","to remark critically"],["BLOVIATE","to talk pompously at length"],["BOWDLERIZE","to censor prudishly"],["CALUMNIATE","to slander falsely"],["CONFABULATE","to chat; to invent memories"],["DECOCT","to extract by boiling"],["DISCOMBOBULATE","to confuse utterly"],["EFFLORESCE","to burst into bloom"],["EXCOGITATE","to think out carefully"],["EXPATIATE","to speak at great length"],["EXPOSTULATE","to protest earnestly"],["FLUMMOX","to bewilder"],["FUSTIGATE","to beat with a club"],["GALUMPH","to move clumsily"],["HORNSWOGGLE","to swindle or trick"],["IMPRECATE","to call down a curse"],["INVEIGLE","to lure by flattery"],["MACERATE","to soften by soaking"],["MAUNDER","to ramble aimlessly"],["NICTITATE","to blink"],["OBNUBILATE","to cloud over"],["OPPUGN","to argue against"],["OSCULATE","to kiss"],["PALTER","to haggle or talk falsely"],["PANDICULATE","to stretch and yawn"],["PERAMBULATE","to stroll around"],["PEREGRINATE","to journey far"],["PETTIFOG","to quibble over trifles"],["PROPITIATE","to win over a god"],["QUAFF","to drink heartily"],["RATIOCINATE","to reason step by step"],["REIFY","to treat an idea as a thing"],["SCARIFY","to scratch the surface"],["STRIDULATE","to chirp by rubbing"],["TITIVATE","to spruce up"],["TITUBATE","to stagger"],["TRADUCE","to slander and shame"],["ULULATE","to howl or wail"],["VATICINATE","to prophesy"],["VELLICATE","to twitch or pluck"],["VITIATE","to spoil or weaken"],["ABSTERGE","to wipe clean"],["OBJURGATE","to scold sharply"],["SUBORN","to bribe into crime"],["EXCULPATE","to clear of guilt"],["DISSIMULATE","to conceal by pretense"],["LEVIGATE","to grind to fine powder"],["EXUVIATE","to shed a skin"],["DEHISCE","to split open when ripe"],["ESTIVATE","to sleep through summer"],["NIDIFY","to build a nest"],["MANUMIT","to free from slavery"],["EVISCERATE","to disembowel"],["FLOCCULATE","to form into clumps"],["SCRY","to see visions in a crystal"]]}];
+const WORDS = DATA.map(l => ["a","n","v"].flatMap(p => l[p].map(([w,d]) => [w,d,p])));
+// small words that don't count when checking whether two definitions overlap
+const STOP = new Set("very extremely with without from that into over something someone others having being able easily full lacking great more than much about deeply highly quickly what when used made make done".split(" "));
+const stems = d => d.toLowerCase().split(/[^a-z]+/).filter(t => t.length>=4 && !STOP.has(t)).map(t => t.slice(0,4));
+const LEVELS = ["Easy","Medium","Hard","Extreme"];
+const CHOICES = [3,4,4,5];   // how many definitions float per word
+const COLORS = ["#e8558a","#e8853a","#c99a12","#3fae58","#3d94e0","#8762f0","#d9609a","#22b08c","#e86a6a","#4f9ed6"];
+
+let lvl = 0, word = "", def = "", pool = [], ruled = new Set(), solved = true;
+let bubbles = [], running = false, last = 0, spawnT = 0, decks = {};
+let mode = "solo", nPlayers = 2, sides = [], turn = 0, game = 0, best = 0;
+let opt = { sound:true, calm:false };
+const TARGET = 10, MAXMISS = 3;   // first to 10 wins a battle; 3 misses and you're out
+const PCOL = ["#ff6b9d","#4dabf7","#69db7c","#ffa94d"];
+const NOTES = {
+  solo: "Pop the bubble with the right meaning. 3 wrong answers and it's game over.",
+  battle: "Pass the phone and take turns. A miss ends your turn. 3 misses and you're out. First to 10 wins.",
+  teams: "2 vs 2, taking turns. Each team shares 3 misses. First team to 10 wins."
+};
+const $ = id => document.getElementById(id);
+const field = $("field");
+const shuffle = a => { for(let i=a.length-1;i>0;i--){ const j=Math.floor(Math.random()*(i+1)); [a[i],a[j]]=[a[j],a[i]]; } return a; };
+
+/* ---------- sound ---------- */
+let ac;
+function audio(){ if(!ac){ try{ ac = new (window.AudioContext||window.webkitAudioContext)(); }catch(e){} } if(ac && ac.state==="suspended") ac.resume(); return ac; }
+function tone(freq, dur=.12, type="sine", vol=.25, slide=0){
+  if(!opt.sound) return; const a = audio(); if(!a) return;
+  const o = a.createOscillator(), g = a.createGain(), t = a.currentTime;
+  o.type = type; o.frequency.setValueAtTime(freq, t);
+  if(slide) o.frequency.exponentialRampToValueAtTime(freq*slide, t+dur);
+  g.gain.setValueAtTime(vol, t); g.gain.exponentialRampToValueAtTime(.001, t+dur);
+  o.connect(g).connect(a.destination); o.start(t); o.stop(t+dur);
+}
+const popSound = () => tone(620, .15, "sine", .3, 1.8);
+const softBoop = () => tone(220, .12, "triangle", .12, .8);
+const winSound = () => [523,659,784,1046].forEach((f,i)=>setTimeout(()=>tone(f,.25,"triangle",.25),i*110));
+
+/* ---------- speech: iPhone Safari, Android Chrome, and the Android app (Capacitor TextToSpeech) ---------- */
+const Speech = (() => {
+  const cap = window.Capacitor;
+  let nativeTTS = null;
+  try {
+    if (cap && cap.isNativePlatform && cap.isNativePlatform() && cap.registerPlugin) nativeTTS = cap.registerPlugin("TextToSpeech");
+  } catch(e) {}
+  const web = !nativeTTS && "speechSynthesis" in window ? window.speechSynthesis : null;
+
+  let voice = null;
+  function pickVoice(){
+    if(!web) return;
+    const vs = web.getVoices() || [];
+    voice = vs.find(v=>/^en[-_]US$/i.test(v.lang) && v.localService) || vs.find(v=>/^en[-_]US$/i.test(v.lang))
+         || vs.find(v=>/^en/i.test(v.lang)) || null;
+  }
+  if(web){ pickVoice(); try{ web.addEventListener ? web.addEventListener("voiceschanged", pickVoice) : (web.onvoiceschanged = pickVoice); }catch(e){} }
+
+  let queue = [], busy = false, gen = 0;
+  const keep = [];
+
+  function sayOnce(text, o){
+    if(nativeTTS){
+      return nativeTTS.speak({ text, lang:"en-US", rate:o.rate, pitch:o.pitch, volume:1.0, category:"playback" }).catch(()=>{});
+    }
+    if(!web) return Promise.resolve();
+    return new Promise(res => {
+      let done = false; const fin = () => { if(!done){ done = true; clearTimeout(t); const i = keep.indexOf(u); if(i>=0) keep.splice(i,1); res(); } };
+      const u = new SpeechSynthesisUtterance(text);
+      u.lang = "en-US"; if(voice) u.voice = voice;
+      u.rate = o.rate; u.pitch = o.pitch; u.volume = 1;
+      u.onend = fin; u.onerror = fin; keep.push(u);
+      const t = setTimeout(fin, 900 + text.length * 260 / o.rate);
+      if(web.paused) web.resume();
+      web.speak(u);
+    });
+  }
+  function pump(){
+    if(busy || !queue.length) return;
+    busy = true;
+    const my = gen, item = queue.shift();
+    sayOnce(item.text, item).then(() => { if(my === gen){ busy = false; pump(); } });
+  }
+  function stop(){
+    gen++; queue = []; busy = false;
+    try{ if(nativeTTS) nativeTTS.stop().catch(()=>{}); else if(web) web.cancel(); }catch(e){}
+  }
+  return {
+    say(text, {rate=.9, pitch=1, interrupt=true}={}){
+      if(!opt.sound) return;
+      const wasBusy = busy;
+      if(interrupt) stop();
+      queue.push({text, rate, pitch});
+      if(interrupt && wasBusy && web) setTimeout(pump, 80); else pump();
+    },
+    unlock(){
+      try{
+        if(web && !this._u){ this._u = true; const u = new SpeechSynthesisUtterance(" "); u.volume = 0; web.speak(u); }
+        if(web) pickVoice();
+      }catch(e){}
+    },
+    stop
+  };
+})();
+const sayWord = () => Speech.say(word.toLowerCase(), {rate:.8});
+function buzz(ms){ try{ navigator.vibrate && navigator.vibrate(ms); }catch(e){} }
+
+/* ---------- round ---------- */
+function fitWord(){
+  const W = $("target").clientWidth || 320;
+  $("word").style.fontSize = Math.max(20, Math.min(W >= 700 ? 76 : 46, (W-16) / (word.length * .68))) + "px";
+}
+function newWord(){
+  const list = WORDS[lvl];
+  // each level keeps its own shuffled deck, so no word repeats until all 300 have come up
+  let deck = decks[lvl];
+  if(!deck || !deck.length){ deck = decks[lvl] = shuffle(list.slice()); if(deck[deck.length-1][0]===word) deck.reverse(); }
+  let pos; [word, def, pos] = deck.pop();
+  // Wrong answers that can't be ruled out at a glance:
+  //  - same part of speech as the right answer (so "to ..." or "a ..." never gives it away)
+  //  - no shared key word with the right answer (so two near-synonyms never show together)
+  //  - about the same length as the right answer
+  const mine = new Set(stems(def));
+  const fits = shuffle(list.filter(w => w[0]!==word && w[2]===pos && !stems(w[1]).some(t => mine.has(t))));
+  const decoys = fits.slice(0, 14).sort((x,y) => Math.abs(x[1].length-def.length) - Math.abs(y[1].length-def.length))
+                     .slice(0, CHOICES[lvl]-1).map(w => w[1]);
+  pool = shuffle([def, ...decoys]);
+  ruled = new Set(); solved = false;
+  $("turn").classList.remove("show");
+  $("ask").textContent = mode==="solo" ? "What does this word mean?" : who() + ": what does this word mean?";
+  $("word").textContent = word; fitWord();
+  $("levelPill").textContent = LEVELS[lvl];
+  clearField();
+  const n = lanes().n;
+  for(let i=0;i<Math.min(n, pool.length);i++) spawn(true);
+  spawnT = 1.2;
+  setTimeout(sayWord, 300);
+}
+
+function lanes(){
+  const W = field.clientWidth, H = field.clientHeight;
+  const tablet = W >= 700 && H >= 560;
+  const size = tablet ? Math.max(150, Math.min(230, W/4 - 6, H/3.6)) : Math.max(108, Math.min(150, W/3 - 4));
+  const n = Math.max(2, Math.floor(W/size));
+  return { W, size, n, laneW: W/n };
+}
+
+function spawn(initial){
+  const { size, n, laneW } = lanes(), H = field.clientHeight;
+  const free = pool.filter(d => !bubbles.some(b=>b.d===d));
+  if(!free.length) return false;
+  // a lane is open when nothing in it is still near the bottom (or, at round start, when it's empty)
+  const open = [];
+  for(let i=0;i<n;i++){
+    const inLane = bubbles.filter(b=>b.lane===i);
+    if(initial ? !inLane.length : !inLane.some(b=>b.y > H - size - 16)) open.push(i);
+  }
+  if(!open.length) return false;
+  const lane = open[Math.floor(Math.random()*open.length)];
+  let d = free[Math.floor(Math.random()*free.length)];
+  if(free.includes(def) && !initial && Math.random()<.5) d = def;   // the right answer comes back around quickly
+
+  const el = document.createElement("div"); el.className = "bubble";
+  el.style.width = el.style.height = size+"px"; el.style.fontSize = Math.max(13, size*.125)+"px";
+  el.textContent = d;
+  if(ruled.has(d)) el.classList.add("out");
+  const ci = Math.floor(Math.random()*COLORS.length);
+  el.style.backgroundColor = COLORS[ci];
+  const slack = Math.max(0, (laneW-size)/2);
+  const b = { el, d, size, ci, lane,
+    bx: lane*laneW + slack,
+    x: 0, y: initial ? H*0.25 + Math.random()*Math.max(10, H*0.75 - size) : H + 10,
+    vy: (opt.calm ? 13 : 22) + Math.random()*(opt.calm?5:9) + lvl*2,
+    ph: Math.random()*6.28, sway: slack, colorT: Math.random()*1.5 };
+  el.addEventListener("pointerdown", e=>{ e.preventDefault(); tap(b); });
+  field.appendChild(el); bubbles.push(b);
+  return true;
+}
+
+function tap(b){
+  audio();
+  if(solved) return;
+  const s = sides[turn];
+  if(b.d === def){
+    solved = true;
+    popSound(); buzz(15); popAt(b);
+    s.score++; renderBoard();
+    reveal(true);
+  } else {
+    b.el.classList.remove("wobble"); void b.el.offsetWidth; b.el.classList.add("wobble","out");
+    softBoop();
+    if(ruled.has(b.d)) return;          // tapping an already-dimmed bubble doesn't cost another miss
+    ruled.add(b.d); s.strikes++; buzz(60); renderBoard();
+    // solo: keep trying until the 3rd miss. battle/teams: a miss ends the turn.
+    if(mode !== "solo" || s.strikes >= MAXMISS){ solved = true; reveal(false); }
+  }
+}
+
+function popAt(b){
+  const cx = b.x + b.size/2, cy = b.y + b.size/2;
+  for(let i=0;i<12;i++){
+    const s = document.createElement("div"); s.className="spark";
+    s.style.background = COLORS[(b.ci+i)%COLORS.length];
+    s.style.left = cx+"px"; s.style.top = cy+"px"; field.appendChild(s);
+    const a = i/12*6.28, d = 50+Math.random()*50;
+    s.animate([{transform:"translate(-50%,-50%) scale(1)",opacity:1},{transform:`translate(${Math.cos(a)*d-5}px,${Math.sin(a)*d-5}px) scale(.2)`,opacity:0}],{duration:500,easing:"ease-out"}).onfinish=()=>s.remove();
+  }
+  b.el.animate([{transform:b.el.style.transform+" scale(1)",opacity:1},{transform:b.el.style.transform+" scale(1.4)",opacity:0}],{duration:180}).onfinish=()=>b.el.remove();
+  bubbles = bubbles.filter(x=>x!==b);
+}
+
+/* show the word and its meaning, then move the game along */
+function reveal(ok){
+  const g = game;
+  if(ok){ winSound(); buzz([20,40,20]); }
+  const c = $("cheer");
+  c.classList.toggle("miss", !ok);
+  c.querySelector(".w").textContent = (ok ? "" : "✖ ") + word;
+  c.querySelector(".d").textContent = def;
+  c.classList.add("show");
+  Speech.say(word.toLowerCase() + ". " + def + ".", {rate:.9});
+  bubbles.slice().forEach((b,i)=>setTimeout(()=>{ if(g===game && bubbles.includes(b)){ popAt(b); if(ok) tone(600+i*60,.1,"sine",.12,1.5);} }, 150+i*90));
+  setTimeout(()=>{ if(g!==game || !running) return; c.classList.remove("show"); advance(); }, 3400);
+}
+
+function advance(){
+  const s = sides[turn];
+  if(s.strikes >= MAXMISS) s.out = true;
+  if(mode === "solo") return s.out ? endGame(null) : newWord();
+  const alive = sides.filter(x=>!x.out);
+  if(s.score >= TARGET) return endGame(s);
+  if(alive.length <= 1) return endGame(alive[0] || null);
+  if(s.members) s.mi = (s.mi+1) % s.members.length;
+  do { turn = (turn+1) % sides.length; } while(sides[turn].out);
+  renderBoard(); showTurn();
+}
+
+/* ---------- players, turns, game over ---------- */
+function who(){ const s = sides[turn]; return s.members ? s.members[s.mi] : s.name; }
+
+function renderBoard(){
+  $("board").innerHTML = sides.map((s,i)=>
+    `<div class="chip${mode!=="solo" && i===turn ? " on":""}${s.out?" dead":""}" style="--c:${s.color}">` +
+    (mode==="solo" ? "⭐" : `<i></i>${s.short}`) + ` <b>${s.score}</b>` +
+    `<span class="ss">${[0,1,2].map(k=>`<span class="s${k<s.strikes?" x":""}"></span>`).join("")}</span></div>`
+  ).join("") + (mode==="solo" ? `<div class="chip">Best ${best}</div>` : "");
+}
+
+function clearField(){ bubbles.forEach(b=>b.el.remove()); bubbles = []; }
+
+function showTurn(){
+  solved = true; clearField();
+  $("word").innerHTML = "&nbsp;"; $("ask").textContent = "";
+  const s = sides[turn], t = $("turn");
+  t.querySelector(".who").textContent = who();
+  t.querySelector(".who").style.color = s.color;
+  t.querySelector(".sub").textContent = (s.members ? s.name + " · " : "") + "your turn. Take the phone.";
+  t.classList.add("show");
+}
+
+function startGame(l){
+  game++; lvl = l; word = ""; turn = 0;
+  const mk = o => Object.assign({score:0, strikes:0, out:false}, o);
+  if(mode === "solo") sides = [mk({name:"You", short:"", color:PCOL[0]})];
+  else if(mode === "battle") sides = Array.from({length:nPlayers}, (_,i)=>mk({name:"Player "+(i+1), short:"P"+(i+1), color:PCOL[i]}));
+  else sides = [mk({name:"Red Team", short:"Red", color:"#ff7b7b", members:["Player 1","Player 3"], mi:0}),
+                mk({name:"Blue Team", short:"Blue", color:PCOL[1], members:["Player 2","Player 4"], mi:0})];
+  try { best = +localStorage.getItem("wpd_best_"+lvl) || 0; } catch(e){ best = 0; }
+  $("overlay").classList.add("hide"); $("end").classList.remove("show"); $("cheer").classList.remove("show");
+  $("levelPill").textContent = LEVELS[lvl];
+  running = true; renderBoard();
+  if(mode === "solo") newWord(); else showTurn();
+}
+
+function endGame(winner){
+  running = false; solved = true; game++; clearField();
+  $("word").innerHTML = "&nbsp;"; $("ask").textContent = "";
+  if(mode === "solo"){
+    const n = sides[0].score, isBest = n > best;
+    if(isBest){ best = n; try{ localStorage.setItem("wpd_best_"+lvl, best); }catch(e){} }
+    $("endTitle").textContent = "Game over";
+    $("endText").textContent = `3 misses. You got ${n} right on ${LEVELS[lvl]}.` + (isBest ? " New best!" : ` Best: ${best}.`);
+    $("endList").innerHTML = "";
+  } else {
+    $("endTitle").textContent = winner ? `🏆 ${winner.name} wins!` : "Everyone is out!";
+    $("endText").textContent = !winner ? "Nobody made it." : winner.score >= TARGET ? `First to ${TARGET} on ${LEVELS[lvl]}.` : `Last one standing on ${LEVELS[lvl]}.`;
+    $("endList").innerHTML = sides.slice().sort((a,b)=>b.score-a.score).map(s=>
+      `<div><span style="color:${s.color};font-weight:800">${s.name}</span><span>${s.score} right · ${s.strikes} missed</span></div>`).join("");
+    if(winner) winSound();
+  }
+  $("end").classList.add("show");
+}
+
+/* ---------- loop ---------- */
+function loop(t){
+  const dt = Math.min(.05, (t-last)/1000 || 0); last = t;
+  if(running && !solved){
+    const W = field.clientWidth;
+    spawnT -= dt;
+    if(spawnT<=0){ spawn(); spawnT = (opt.calm?2.2:1.4) + Math.random()*.6; }
+    for(const b of bubbles.slice()){
+      b.y -= b.vy*dt; b.ph += dt*1.1;
+      b.x = Math.max(0, Math.min(W-b.size, b.bx + Math.sin(b.ph)*b.sway));
+      b.colorT -= dt;
+      if(b.colorT<=0){ b.ci = (b.ci+1)%COLORS.length; b.el.style.backgroundColor = COLORS[b.ci]; b.colorT = 1.5+Math.random(); }
+      b.el.style.transform = `translate(${b.x}px,${b.y}px)`;
+      if(b.y < -b.size-10){ b.el.remove(); bubbles = bubbles.filter(x=>x!==b); }
+    }
+  }
+  requestAnimationFrame(loop);
+}
+requestAnimationFrame(loop);
+window.addEventListener("resize", ()=>{ if(word) fitWord(); });
+
+/* ---------- menu ---------- */
+document.querySelectorAll("[data-lvl]").forEach(btn=>btn.addEventListener("click",()=>{
+  audio(); Speech.unlock(); startGame(+btn.dataset.lvl);
+}));
+function setMode(m){
+  mode = m;
+  document.querySelectorAll("#modeSeg button").forEach(b=>b.classList.toggle("on", b.dataset.mode===m));
+  $("nSeg").hidden = m !== "battle";
+  $("modeNote").textContent = NOTES[m];
+}
+document.querySelectorAll("#modeSeg button").forEach(b=>b.onclick = ()=>setMode(b.dataset.mode));
+document.querySelectorAll("#nSeg button").forEach(b=>b.onclick = ()=>{
+  nPlayers = +b.dataset.n;
+  document.querySelectorAll("#nSeg button").forEach(x=>x.classList.toggle("on", x===b));
+});
+setMode("solo");
+
+/* logo: the name itself, each letter in the bubble colors, slowly changing like the bubbles do */
+(() => {
+  const LOGO = ["#ff6b9d","#ffa94d","#ffd43b","#69db7c","#4dabf7","#f783ac","#38d9a9","#ff8787","#74c0fc"];
+  const mk = t => [...t].map(ch => ch===" " ? " " : `<span>${ch}</span>`).join("");
+  $("logo").innerHTML = mk("Word Pop") + "<small>" + mk("Definition") + "</small>";
+  const letters = [...$("logo").querySelectorAll("span")];
+  let shift = 0;
+  const paint = () => letters.forEach((el,i) => el.style.color = LOGO[(i + shift) % LOGO.length]);
+  paint(); setInterval(() => { shift++; paint(); }, 1800);
+})();
+function toMenu(){ Speech.stop(); running = false; solved = true; game++; clearField();
+  $("cheer").classList.remove("show"); $("turn").classList.remove("show"); $("end").classList.remove("show"); $("overlay").classList.remove("hide"); }
+$("menuBtn").onclick = toMenu;
+$("endMenuBtn").onclick = toMenu;
+$("againBtn").onclick = ()=>{ audio(); Speech.unlock(); startGame(lvl); };
+$("turn").addEventListener("pointerdown", e=>{ e.preventDefault(); audio(); Speech.unlock(); if(running) newWord(); });
+$("sayBtn").onclick = ()=>{ audio(); Speech.unlock(); if(word && !solved) sayWord(); };
+[["tSound","sound"],["tCalm","calm"]].forEach(([id,k])=>{
+  $(id).onclick = ()=>{ opt[k]=!opt[k]; $(id).classList.toggle("on", opt[k]); };
+});
+
+/* offline support when installed from the web (not used inside the Android app) */
+try {
+  if ("serviceWorker" in navigator && location.protocol === "https:" && location.hostname !== "localhost") {
+    window.addEventListener("load", () => navigator.serviceWorker.register("sw.js").catch(()=>{}));
+  }
+} catch(e) {}
+</script>
+</body>
+</html>
