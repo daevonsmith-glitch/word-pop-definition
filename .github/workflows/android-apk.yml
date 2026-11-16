@@ -1,0 +1,120 @@
+name: Build Android APK
+
+on:
+  push:
+    branches: [main]
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+jobs:
+  build:
+    runs-on: ubuntu-24.04
+    env:
+      KEYSTORE_BASE64: ${{ secrets.KEYSTORE_BASE64 }}
+      KEYSTORE_PASSWORD: ${{ secrets.KEYSTORE_PASSWORD }}
+    steps:
+      - uses: actions/checkout@v4
+
+      # Lets you upload the whole game as one zip from a phone: this unpacks it into the repository.
+      - name: Unpack word-pop-definition.zip
+        run: |
+          if [ -f word-pop-definition.zip ]; then
+            unzip -q -o word-pop-definition.zip -d /tmp/wpd
+            rm -rf /tmp/wpd/word-pop-definition/.github
+            cp -r /tmp/wpd/word-pop-definition/. .
+            git rm -q word-pop-definition.zip
+            git add -A
+            git config user.name "github-actions[bot]"
+            git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+            git commit -q -m "Unpack game files from word-pop-definition.zip"
+            git push
+          fi
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+
+      - uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: 21
+
+      - name: Install Capacitor
+        run: npm install --no-audit --no-fund --legacy-peer-deps
+
+      - name: Create Android project
+        run: npx cap add android
+
+      - name: Copy the game into the app
+        run: npx cap sync android
+
+      - name: Allow access to the phone's speech engine
+        run: |
+          M=android/app/src/main/AndroidManifest.xml
+          grep -q TTS_SERVICE "$M" || sed -i 's#</manifest>#    <queries>\n        <intent>\n            <action android:name="android.intent.action.TTS_SERVICE" />\n        </intent>\n    </queries>\n</manifest>#' "$M"
+
+      # Google Play needs a higher version number for every upload, so use the build number.
+      - name: Set version number
+        run: |
+          G=android/app/build.gradle
+          sed -i -E "s/versionCode [0-9]+/versionCode ${{ github.run_number }}/; s/versionName \"[^\"]*\"/versionName \"1.0.${{ github.run_number }}\"/" "$G"
+          grep -E "versionCode|versionName" "$G"
+          grep -E "Sdk" android/variables.gradle
+
+      - name: Add app icon
+        continue-on-error: true
+        run: |
+          R=android/app/src/main/res
+          for d in mdpi:48 hdpi:72 xhdpi:96 xxhdpi:144 xxxhdpi:192; do
+            n=${d%%:*}; s=${d##*:}
+            mkdir -p $R/mipmap-$n
+            convert www/icons/icon-512.png -resize ${s}x${s} $R/mipmap-$n/ic_launcher.png
+            cp $R/mipmap-$n/ic_launcher.png $R/mipmap-$n/ic_launcher_round.png
+            rm -f $R/mipmap-$n/ic_launcher_foreground.png
+          done
+          rm -rf $R/mipmap-anydpi-v26
+
+      - name: Build APK (for sharing directly)
+        working-directory: android
+        run: |
+          chmod +x gradlew
+          ./gradlew assembleDebug --no-daemon --stacktrace
+
+      - name: Rename APK
+        run: cp android/app/build/outputs/apk/debug/app-debug.apk WordPopDefinition.apk
+
+      # The Play Store file. Only runs once the two signing secrets are saved in the repository settings.
+      - name: Build and sign the Play Store bundle
+        if: env.KEYSTORE_BASE64 != ''
+        continue-on-error: true
+        run: |
+          (cd android && ./gradlew bundleRelease --no-daemon --stacktrace)
+          A=android/app/build/outputs/bundle/release/app-release.aab
+          echo "$KEYSTORE_BASE64" | base64 -d > "$RUNNER_TEMP/upload.jks"
+          jarsigner -keystore "$RUNNER_TEMP/upload.jks" -storepass "$KEYSTORE_PASSWORD" -keypass "$KEYSTORE_PASSWORD" \
+            -sigalg SHA256withRSA -digestalg SHA-256 "$A" upload
+          rm -f "$RUNNER_TEMP/upload.jks"
+          cp "$A" WordPopDefinition.aab
+
+      - name: Keep a copy on the run page
+        uses: actions/upload-artifact@v4
+        with:
+          name: WordPopDefinition
+          path: |
+            WordPopDefinition.apk
+            WordPopDefinition.aab
+
+      - name: Publish to Releases
+        uses: softprops/action-gh-release@v2
+        with:
+          tag_name: latest
+          name: "Word Pop: Definition (latest build)"
+          body: |
+            WordPopDefinition.apk - open it on an Android phone to install the game directly.
+            WordPopDefinition.aab - the file to upload to the Google Play Console (only present once signing is set up).
+          files: |
+            WordPopDefinition.apk
+            WordPopDefinition.aab
+          make_latest: true
