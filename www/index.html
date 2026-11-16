@@ -46,6 +46,9 @@
   .card p { color:var(--soft); margin:8px 0 14px; font-size:17px; }
   .big { display:block; width:100%; border:0; border-radius:18px; padding:11px; margin:9px 0; font:inherit; font-size:21px; font-weight:800; color:#2a1a5e; cursor:pointer; line-height:1.15; }
   .big small { display:block; font-size:14px; font-weight:600; opacity:.75; }
+  .vinfo { font-size:14px; color:var(--soft); margin:2px 4px 4px; min-height:1em; text-align:left; }
+  .vinfo.bad { color:#fecaca; font-weight:800; }
+  .big.hide { display:none; }
   .opt { display:flex; justify-content:space-between; align-items:center; margin:10px 2px; font-size:17px; text-align:left; }
   .toggle { width:56px; height:32px; border-radius:999px; background:rgba(255,255,255,.25); position:relative; border:0; cursor:pointer; flex:none; }
   .toggle::after { content:''; position:absolute; top:4px; left:4px; width:24px; height:24px; border-radius:50%; background:#fff; transition:left .2s; }
@@ -118,6 +121,8 @@
     <button class="big" style="background:#fca5a5" data-lvl="3">Extreme<small>words almost nobody knows</small></button>
     <div class="opt"><span>Sounds and read-aloud</span><button class="toggle on" id="tSound"></button></div>
     <div class="opt"><span>Calm mode (slow bubbles)</span><button class="toggle" id="tCalm"></button></div>
+    <div id="voiceInfo" class="vinfo"></div>
+    <button class="big hide" id="voiceFix" style="background:#fde68a;font-size:16px">Install a speech voice</button>
     <a href="privacy.html" style="display:inline-block;margin-top:8px;color:rgba(255,255,255,.7);font-size:14px">Privacy policy</a>
   </div>
 </div>
@@ -173,14 +178,45 @@ const popSound = () => tone(620, .15, "sine", .3, 1.8);
 const softBoop = () => tone(220, .12, "triangle", .12, .8);
 const winSound = () => [523,659,784,1046].forEach((f,i)=>setTimeout(()=>tone(f,.25,"triangle",.25),i*110));
 
-/* ---------- speech: iPhone Safari, Android Chrome, and the Android app (Capacitor TextToSpeech) ---------- */
+/* ---------- speech: iPhone Safari, Android Chrome, and the installed app (Capacitor TextToSpeech) ----------
+   - Installed app: the Android app's built-in browser has no web speech, so the phone's own
+     speech engine is used through the TextToSpeech plugin.
+   - Chrome / Safari: web speechSynthesis, with fixes for Chrome-on-Android quirks.
+   Where the game is running is checked again on every tap, in case the app's bridge loads late. */
 const Speech = (() => {
-  const cap = window.Capacitor;
-  let nativeTTS = null;
-  try {
-    if (cap && cap.isNativePlatform && cap.isNativePlatform() && cap.registerPlugin) nativeTTS = cap.registerPlugin("TextToSpeech");
-  } catch(e) {}
-  const web = !nativeTTS && "speechSynthesis" in window ? window.speechSynthesis : null;
+  let nativeTTS = null, pluginMissing = false, isApp = false;
+  function findNative(){
+    if(nativeTTS) return nativeTTS;
+    const cap = window.Capacitor;
+    try{
+      const plat = cap && cap.getPlatform ? cap.getPlatform() : "";
+      isApp = !!((cap && cap.isNativePlatform && cap.isNativePlatform()) || (plat && plat !== "web") ||
+        window.androidBridge || (window.webkit && window.webkit.messageHandlers && window.webkit.messageHandlers.bridge));
+      if(!isApp || !cap) return null;
+      const headers = cap.PluginHeaders || [];
+      const listed = headers.some(h => h && h.name === "TextToSpeech");
+      const p = cap.Plugins && cap.Plugins.TextToSpeech;
+      if(p && typeof p.speak === "function") nativeTTS = p;
+      else if(headers.length && !listed) pluginMissing = true;
+      else if(cap.isPluginAvailable && !cap.isPluginAvailable("TextToSpeech") && !listed) pluginMissing = true;
+      else if(typeof cap.registerPlugin === "function") nativeTTS = cap.registerPlugin("TextToSpeech");
+      // This game has no bundler, so registerPlugin and Plugins can be missing; the bridge's nativePromise is not.
+      else if(typeof cap.nativePromise === "function") nativeTTS = {
+        speak: o => cap.nativePromise("TextToSpeech", "speak", o),
+        stop: () => cap.nativePromise("TextToSpeech", "stop", {}),
+        openInstall: () => cap.nativePromise("TextToSpeech", "openInstall", {})
+      };
+    }catch(e){ pluginMissing = true; }
+    return nativeTTS;
+  }
+  findNative();
+  const ua = navigator.userAgent || "";
+  const inAppViewer = /Android/.test(ua) && /; wv\)/.test(ua);   // the built-in viewer inside another app
+  let web = null;
+  const findWeb = () => { if(!nativeTTS && !web && "speechSynthesis" in window) web = window.speechSynthesis; return web; };
+  findWeb();
+  let lastError = "", spokeOnce = false;
+  const report = () => { try { showVoiceInfo(); } catch(e){} };
 
   let voice = null;
   function pickVoice(){
@@ -192,11 +228,22 @@ const Speech = (() => {
   if(web){ pickVoice(); try{ web.addEventListener ? web.addEventListener("voiceschanged", pickVoice) : (web.onvoiceschanged = pickVoice); }catch(e){} }
 
   let queue = [], busy = false, gen = 0;
-  const keep = [];
+  const keep = [];  // hold utterances so Chrome doesn't garbage-collect them mid-speech
 
   function sayOnce(text, o){
+    findNative(); if(!nativeTTS) findWeb();
     if(nativeTTS){
-      return nativeTTS.speak({ text, lang:"en-US", rate:o.rate, pitch:o.pitch, volume:1.0, category:"playback" }).catch(()=>{});
+      // Safety timer in case the phone never says "done".
+      return new Promise(res => {
+        let done = false; const fin = () => { if(!done){ done = true; clearTimeout(t); res(); } };
+        const t = setTimeout(fin, 900 + text.length * 260 / o.rate);
+        let call;
+        try { call = nativeTTS.speak({ text, lang:"en-US", rate:o.rate, pitch:o.pitch, volume:1.0, category:"playback", queueStrategy:0 }); }
+        catch(e){ lastError = (e && e.message) || String(e); report(); fin(); return; }
+        Promise.resolve(call)
+          .then(() => { if(!spokeOnce || lastError){ spokeOnce = true; lastError = ""; report(); } fin(); })
+          .catch(e => { lastError = (e && (e.message || e.errorMessage)) || String(e); report(); fin(); });
+      });
     }
     if(!web) return Promise.resolve();
     return new Promise(res => {
@@ -204,39 +251,68 @@ const Speech = (() => {
       const u = new SpeechSynthesisUtterance(text);
       u.lang = "en-US"; if(voice) u.voice = voice;
       u.rate = o.rate; u.pitch = o.pitch; u.volume = 1;
-      u.onend = fin; u.onerror = fin; keep.push(u);
-      const t = setTimeout(fin, 900 + text.length * 260 / o.rate);
+      u.onend = () => { if(!spokeOnce || lastError){ spokeOnce = true; lastError = ""; report(); } fin(); };
+      u.onerror = e => { const er = e && e.error; if(er && er !== "interrupted" && er !== "canceled"){ lastError = er; report(); } fin(); };
+      keep.push(u);
+      const t = setTimeout(fin, 900 + text.length * 260 / o.rate);  // safety net if onend never fires
       if(web.paused) web.resume();
       web.speak(u);
     });
   }
+
   function pump(){
     if(busy || !queue.length) return;
     busy = true;
     const my = gen, item = queue.shift();
     sayOnce(item.text, item).then(() => { if(my === gen){ busy = false; pump(); } });
   }
-  function stop(){
+
+  function stop(hard){
     gen++; queue = []; busy = false;
-    try{ if(nativeTTS) nativeTTS.stop().catch(()=>{}); else if(web) web.cancel(); }catch(e){}
+    try{ if(nativeTTS){ if(hard) Promise.resolve(nativeTTS.stop()).catch(()=>{}); } else if(web) web.cancel(); }catch(e){}
   }
+
   return {
     say(text, {rate=.9, pitch=1, interrupt=true}={}){
       if(!opt.sound) return;
       const wasBusy = busy;
-      if(interrupt) stop();
+      if(interrupt) stop(false);
       queue.push({text, rate, pitch});
+      // Chrome on Android drops speak() called in the same moment as cancel(); wait a beat
       if(interrupt && wasBusy && web) setTimeout(pump, 80); else pump();
     },
+    // call from a tap so iPhone/Android allow speech for the rest of the game
     unlock(){
       try{
+        findNative(); if(!nativeTTS) findWeb();
         if(web && !this._u){ this._u = true; const u = new SpeechSynthesisUtterance(" "); u.volume = 0; web.speak(u); }
         if(web) pickVoice();
       }catch(e){}
+      report();
     },
-    stop
+    stop: () => stop(true),
+    // the line shown in the menu under the options
+    info(){
+      if(pluginMissing) return { bad:true, text:"Voice problem: this app was built without the speech add-on. Rebuild it on GitHub." };
+      findNative(); if(!nativeTTS) findWeb();
+      if(!nativeTTS && !web){
+        if(isApp) return { bad:true, text:"Voice problem: the app can't reach the phone's speech engine. Send this message to Claude." };
+        if(inAppViewer) return { bad:true, text:"No voice here: this game is open inside another app (like Claude or GitHub). Open it in Chrome, or install the Word Pop: Definition app." };
+        return { bad:true, text:"Voice problem: this browser has no speech voice. Try Chrome or Safari." };
+      }
+      if(lastError) return { bad:true, fix:!!nativeTTS, text:"Voice problem: " + lastError };
+      if(!opt.sound) return { bad:false, text:"Sounds are off." };
+      return { bad:false, text:(nativeTTS ? "Voice: the phone's speech engine (app)" : "Voice: the browser's speech") + (spokeOnce ? " ✓ working" : "") };
+    },
+    // Android only: opens the phone's screen for installing a speech voice
+    openInstall(){ try{ nativeTTS && nativeTTS.openInstall && Promise.resolve(nativeTTS.openInstall()).catch(()=>{}); }catch(e){} }
   };
 })();
+function showVoiceInfo(){
+  const i = Speech.info(), el = $("voiceInfo"); if(!el) return;
+  el.textContent = i.text; el.classList.toggle("bad", !!i.bad);
+  $("voiceFix").classList.toggle("hide", !i.fix);
+}
 const sayWord = () => Speech.say(word.toLowerCase(), {rate:.8});
 function buzz(ms){ try{ navigator.vibrate && navigator.vibrate(ms); }catch(e){} }
 
@@ -474,15 +550,17 @@ setMode("solo");
   const paint = () => letters.forEach((el,i) => el.style.color = LOGO[(i + shift) % LOGO.length]);
   paint(); setInterval(() => { shift++; paint(); }, 1800);
 })();
-function toMenu(){ Speech.stop(); running = false; solved = true; game++; clearField();
+function toMenu(){ Speech.stop(); showVoiceInfo(); running = false; solved = true; game++; clearField();
   $("cheer").classList.remove("show"); $("turn").classList.remove("show"); $("end").classList.remove("show"); $("overlay").classList.remove("hide"); }
 $("menuBtn").onclick = toMenu;
 $("endMenuBtn").onclick = toMenu;
 $("againBtn").onclick = ()=>{ audio(); Speech.unlock(); startGame(lvl); };
 $("turn").addEventListener("pointerdown", e=>{ e.preventDefault(); audio(); Speech.unlock(); if(running) newWord(); });
 $("sayBtn").onclick = ()=>{ audio(); Speech.unlock(); if(word && !solved) sayWord(); };
+$("voiceFix").onclick = ()=> Speech.openInstall();
+showVoiceInfo();
 [["tSound","sound"],["tCalm","calm"]].forEach(([id,k])=>{
-  $(id).onclick = ()=>{ opt[k]=!opt[k]; $(id).classList.toggle("on", opt[k]); };
+  $(id).onclick = ()=>{ opt[k]=!opt[k]; $(id).classList.toggle("on", opt[k]); showVoiceInfo(); };
 });
 
 /* offline support when installed from the web (not used inside the Android app) */

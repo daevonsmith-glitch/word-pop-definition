@@ -1,5 +1,5 @@
 // Offline support. Change VERSION whenever you change the game so installed phones pick up the update.
-const VERSION = "word-pop-definition-v5";
+const VERSION = "word-pop-definition-v7";
 const FILES = ["./", "index.html", "privacy.html", "manifest.webmanifest", "icons/icon-192.png", "icons/icon-512.png", "icons/apple-touch-icon.png", "privacy.html"];
 
 self.addEventListener("install", e => {
