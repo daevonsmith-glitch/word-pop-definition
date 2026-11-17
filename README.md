@@ -8,6 +8,7 @@ Read the word, then pop the bubble with the right meaning. For adults: four leve
 - `STORE-GUIDE.md` – step by step for Google Play and the App Store, with listing text
 - `.github/workflows/ios-build.yml` – builds the iPhone and iPad app on GitHub and sends it to App Store Connect
 - `assets/icon-1024.png` – App Store icon
+- `android-res/` – the Android app icon (adaptive icon layers and older-style icons)
 - `www/privacy.html` – the privacy policy page (fill in the two blanks before release)
 
 ---
@@ -83,21 +84,30 @@ jobs:
       KEYSTORE_PASSWORD: ${{ secrets.KEYSTORE_PASSWORD }}
     steps:
       - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
 
       # Lets you upload the whole game as one zip from a phone: this unpacks it into the repository.
-      - name: Unpack word-pop-definition.zip
+      # Phones often rename repeat downloads (word-pop-definition4.zip, word-pop-definition (1).zip),
+      # so any zip whose name starts with word-pop-definition is accepted; the newest upload wins.
+      - name: Unpack the uploaded game zip
         run: |
-          if [ -f word-pop-definition.zip ]; then
-            unzip -q -o word-pop-definition.zip -d /tmp/wpd
+          Z=$(git log --diff-filter=AM --name-only --format= -- 'word-pop-definition*.zip' | while read -r f; do [ -f "$f" ] && echo "$f" && break; done)
+          if [ -n "$Z" ]; then
+            echo "Unpacking $Z"
+            rm -rf /tmp/wpd && unzip -q -o "$Z" -d /tmp/wpd
             rm -rf /tmp/wpd/word-pop-definition/.github
             cp -r /tmp/wpd/word-pop-definition/. .
-            git rm -q word-pop-definition.zip
+            git rm -q -- word-pop-definition*.zip
             git add -A
             git config user.name "github-actions[bot]"
             git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
-            git commit -q -m "Unpack game files from word-pop-definition.zip"
+            git commit -q -m "Unpack game files from $Z"
             git push
+          else
+            echo "No game zip to unpack"
           fi
+          grep -c "voiceInfo" www/index.html && echo "Game version: has the voice fix" || echo "Game version: OLD (no voice fix)"
 
       - uses: actions/setup-node@v4
         with:
@@ -130,18 +140,17 @@ jobs:
           grep -E "versionCode|versionName" "$G"
           grep -E "Sdk" android/variables.gradle
 
+      # The Word Pop: Definition icon, made ahead of time in the android-res folder (Android only).
       - name: Add app icon
-        continue-on-error: true
         run: |
           R=android/app/src/main/res
-          for d in mdpi:48 hdpi:72 xhdpi:96 xxhdpi:144 xxxhdpi:192; do
-            n=${d%%:*}; s=${d##*:}
-            mkdir -p $R/mipmap-$n
-            convert www/icons/icon-512.png -resize ${s}x${s} $R/mipmap-$n/ic_launcher.png
-            cp $R/mipmap-$n/ic_launcher.png $R/mipmap-$n/ic_launcher_round.png
-            rm -f $R/mipmap-$n/ic_launcher_foreground.png
-          done
-          rm -rf $R/mipmap-anydpi-v26
+          if [ -d android-res ]; then
+            rm -f $R/mipmap-*/ic_launcher*.png $R/mipmap-*/ic_launcher*.webp
+            cp -r android-res/. $R/
+            echo "Word Pop: Definition icon added:"; ls $R/mipmap-anydpi-v26 $R/mipmap-xxxhdpi
+          else
+            echo "::warning::The android-res folder is missing, so the app has the default icon. Upload the newest word-pop-definition.zip."
+          fi
 
       - name: Build APK (for sharing directly)
         working-directory: android
